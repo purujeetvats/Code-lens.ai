@@ -1,0 +1,20 @@
+fastapi>=0.115.0
+uvicorn>=0.31.1
+sentence-transformers>=3.0.0
+qdrant-client>=1.9.0
+tree-sitter>=0.22.0
+tree-sitter-python>=0.23.0
+tree-sitter-javascript>=0.23.0
+tree-sitter-typescript>=0.23.0
+tree-sitter-go>=0.23.0
+tree-sitter-rust>=0.23.0
+tree-sitter-java>=0.23.0
+tree-sitter-cpp>=0.23.0
+tree-sitter-c-sharp>=0.23.0
+tree-sitter-ruby>=0.23.0
+tree-sitter-php>=0.23.0
+
+# Cloud LLM providers — optional. Ollama-only users can remove these; the
+# backend imports them lazily and explains how to install them if missing.
+openai>=1.50.0
+anthropic>=1.0.0

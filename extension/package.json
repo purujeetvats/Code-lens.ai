@@ -1,0 +1,231 @@
+{
+  "name": "codelens-ai",
+  "displayName": "CodeLens AI",
+  "description": "AI-powered semantic code search and intelligent code review",
+  "version": "0.1.0",
+  "publisher": "codelens-ai",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Machine Learning",
+    "Linters",
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "codelens-ai.indexWorkspace",
+        "title": "CodeLens AI: Index Workspace"
+      },
+      {
+        "command": "codelens-ai.search",
+        "title": "CodeLens AI: Search"
+      },
+      {
+        "command": "codelens-ai.reviewFile",
+        "title": "CodeLens AI: Review File"
+      },
+      {
+        "command": "codelens-ai.reviewSelection",
+        "title": "CodeLens AI: Review Selection"
+      },
+      {
+        "command": "codelens-ai.clearAnnotations",
+        "title": "CodeLens AI: Clear Review Annotations"
+      },
+      {
+        "command": "codelens-ai.setApiKey",
+        "title": "CodeLens AI: Set API Key"
+      },
+      {
+        "command": "codelens-ai.clearApiKeys",
+        "title": "CodeLens AI: Delete Stored API Keys"
+      },
+      {
+        "command": "codelens-ai.selectProvider",
+        "title": "CodeLens AI: Select Review Provider"
+      },
+      {
+        "command": "codelens-ai.selectModel",
+        "title": "CodeLens AI: Select Model"
+      },
+      {
+        "command": "codelens-ai.chooseCloudContext",
+        "title": "CodeLens AI: Choose Cloud Context"
+      },
+      {
+        "command": "codelens-ai.clearReviewCache",
+        "title": "CodeLens AI: Clear Review Cache"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "codelens-ai.reviewSelection",
+          "when": "editorHasSelection",
+          "group": "codelens-ai@1"
+        },
+        {
+          "command": "codelens-ai.reviewFile",
+          "when": "!editorHasSelection",
+          "group": "codelens-ai@1"
+        }
+      ],
+      "editor/title/context": [
+        {
+          "command": "codelens-ai.reviewFile",
+          "group": "codelens-ai@1"
+        }
+      ]
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "codelens-ai",
+          "title": "CodeLens AI",
+          "icon": "$(search)"
+        }
+      ]
+    },
+    "views": {
+      "codelens-ai": [
+        {
+          "type": "webview",
+          "id": "codelens-ai.searchView",
+          "name": "Search"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "CodeLens AI",
+      "properties": {
+        "codelens-ai.backendPort": {
+          "type": "number",
+          "default": 52411,
+          "description": "Port for the Python backend server"
+        },
+        "codelens-ai.llmProvider": {
+          "type": "string",
+          "enum": [
+            "ollama",
+            "openai",
+            "anthropic"
+          ],
+          "enumDescriptions": [
+            "Local, private, free. Nothing leaves your machine.",
+            "Cloud. Requires an OpenAI API key; your code is sent to OpenAI.",
+            "Cloud. Requires an Anthropic API key; your code is sent to Anthropic."
+          ],
+          "default": "ollama",
+          "description": "Primary LLM provider for code review. Set keys with 'CodeLens AI: Set API Key' — they are stored in your OS keychain, never in this file."
+        },
+        "codelens-ai.fallbackProvider": {
+          "type": "string",
+          "enum": [
+            "none",
+            "ollama",
+            "openai",
+            "anthropic"
+          ],
+          "default": "none",
+          "description": "Provider to try if the primary one is unreachable or rate-limited. A bad API key is reported instead of silently falling back."
+        },
+        "codelens-ai.cloudContext": {
+          "type": "string",
+          "enum": [
+            "none",
+            "workspace"
+          ],
+          "enumDescriptions": [
+            "Send only the code being reviewed. No other files leave your machine.",
+            "Also send related snippets from other files in the workspace, for better reviews."
+          ],
+          "default": "none",
+          "description": "How much workspace context a CLOUD provider may receive. Local Ollama always gets full context, since nothing leaves the machine."
+        },
+        "codelens-ai.openaiModel": {
+          "type": "string",
+          "default": "gpt-4o-mini",
+          "description": "OpenAI model for code review."
+        },
+        "codelens-ai.anthropicModel": {
+          "type": "string",
+          "default": "claude-opus-5",
+          "description": "Anthropic model for code review."
+        },
+        "codelens-ai.cacheEnabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Reuse a cached review when the same code is reviewed again with the same provider. Saves cloud spend."
+        },
+        "codelens-ai.cacheTtlSeconds": {
+          "type": "number",
+          "default": 3600,
+          "description": "How long a cached review stays valid."
+        },
+        "codelens-ai.embeddingModel": {
+          "type": "string",
+          "enum": [
+            "unixcoder",
+            "openai"
+          ],
+          "default": "unixcoder",
+          "description": "Embedding model for code search"
+        },
+        "codelens-ai.ollamaModel": {
+          "type": "string",
+          "default": "",
+          "description": "Ollama model used for code review (e.g. qwen2.5-coder:7b). Leave empty to auto-pick an installed model."
+        },
+        "codelens-ai.reviewTimeoutSeconds": {
+          "type": "number",
+          "default": 180,
+          "description": "How long to wait for a review before giving up. Local models on large files can be slow."
+        },
+        "codelens-ai.indexOnSave": {
+          "type": "boolean",
+          "default": true,
+          "description": "Re-index a file when you save it, so search results stay current."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "bundle-backend": "node scripts/bundle-backend.js",
+    "package": "npm run compile && npm run bundle-backend && npx --yes @vscode/vsce package"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.85.0",
+    "@types/node": "^20.0.0",
+    "typescript": "^5.3.0"
+  },
+  "license": "MIT",
+  "keywords": [
+    "ai",
+    "code review",
+    "semantic search",
+    "ollama",
+    "local-first",
+    "rag"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/purujeetvats/Code-lens.ai"
+  },
+  "bugs": {
+    "url": "https://github.com/purujeetvats/Code-lens.ai/issues"
+  },
+  "galleryBanner": {
+    "color": "#0d0d0d",
+    "theme": "dark"
+  }
+}

@@ -1,0 +1,22 @@
+node_modules/
+out/
+*.vsix
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+.codelens/
+
+# Secrets — never commit these
+.env
+.env.*
+*.pem
+*.key
+secrets.json
+
+# Build artifact: backend copied in for packaging
+extension/backend/
+extension/*.vsix
+
+# Personal documents — never publish
+*.pdf

@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-__NONCE__';">
+  <style>
+    :root {
+      --bg: #1a1a2e;
+      --bg-surface: #16213e;
+      --bg-elevated: #0f3460;
+      --bg-code: #0d1117;
+      --text-primary: #e0e0e0;
+      --text-secondary: #8892a4;
+      --text-muted: #5a6377;
+      --accent: #00d4aa;
+      --accent-dim: rgba(0, 212, 170, 0.12);
+      --accent-border: rgba(0, 212, 170, 0.25);
+      --border: rgba(255, 255, 255, 0.06);
+      /* status palette — reserved, never reused for categories */
+      --critical: #d03b3b;
+      --warning: #fab219;
+      --info: #7dd3fc;
+      --radius: 6px;
+      --mono: 'SF Mono', 'Cascadia Code', 'JetBrains Mono', 'Fira Code', Consolas, monospace;
+      --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: var(--sans);
+      font-size: 13px;
+      background: var(--bg);
+      color: var(--text-primary);
+      line-height: 1.5;
+    }
+
+    /* ── Header ── */
+    .header {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      background: var(--bg);
+      border-bottom: 1px solid var(--border);
+      padding: 14px 18px 12px;
+    }
+
+    .header-top {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    .header-title {
+      font-family: var(--mono);
+      font-size: 13px;
+      font-weight: 500;
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .model-badge {
+      font-family: var(--mono);
+      font-size: 10.5px;
+      padding: 2px 7px;
+      border-radius: 100px;
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      color: var(--text-secondary);
+      white-space: nowrap;
+    }
+
+    /* Cloud provider gets a distinct badge — where the code went is not a detail */
+    .model-badge.cloud {
+      background: rgba(250, 178, 25, 0.12);
+      border-color: rgba(250, 178, 25, 0.3);
+      color: var(--warning);
+    }
+
+    .cache-badge {
+      font-family: var(--mono);
+      font-size: 10.5px;
+      padding: 2px 7px;
+      border-radius: 100px;
+      background: var(--accent-dim);
+      border: 1px solid var(--accent-border);
+      color: var(--accent);
+      white-space: nowrap;
+    }
+
+    .btn {
+      font-family: var(--sans);
+      font-size: 11.5px;
+      padding: 4px 11px;
+      border-radius: var(--radius);
+      background: var(--accent-dim);
+      border: 1px solid var(--accent-border);
+      color: var(--accent);
+      cursor: pointer;
+      transition: background 0.15s;
+      white-space: nowrap;
+    }
+
+    .btn:hover { background: rgba(0, 212, 170, 0.2); }
+    .btn:disabled { opacity: 0.4; cursor: default; }
+
+    /* ── Severity stat tiles ── */
+    .tiles {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+    }
+
+    .tile {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      padding: 9px 11px;
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+    }
+
+    .tile-icon {
+      font-size: 13px;
+      line-height: 1;
+      width: 15px;
+      text-align: center;
+    }
+
+    .tile-body { display: flex; flex-direction: column; min-width: 0; }
+
+    .tile-count {
+      font-family: var(--mono);
+      font-size: 17px;
+      font-weight: 600;
+      line-height: 1.1;
+      color: var(--text-primary);
+    }
+
+    .tile-label {
+      font-size: 10.5px;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .tile.zero .tile-count { color: var(--text-muted); }
+    .tile.zero .tile-icon { opacity: 0.35; }
+
+    .tile.critical .tile-icon { color: var(--critical); }
+    .tile.warning  .tile-icon { color: var(--warning); }
+    .tile.info     .tile-icon { color: var(--info); }
+
+    .summary-line {
+      padding: 10px 18px;
+      font-size: 12px;
+      color: var(--text-secondary);
+      border-bottom: 1px solid var(--border);
+      background: var(--bg);
+    }
+
+    .summary-line .context-note {
+      font-family: var(--mono);
+      font-size: 10.5px;
+      color: var(--text-muted);
+    }
+
+    .truncation-banner {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      padding: 9px 18px;
+      font-size: 11.5px;
+      line-height: 1.5;
+      color: var(--text-secondary);
+      background: rgba(250, 178, 25, 0.08);
+      border-bottom: 1px solid var(--border);
+      border-left: 2px solid var(--warning);
+    }
+
+    .truncation-banner .banner-icon {
+      color: var(--warning);
+      flex-shrink: 0;
+    }
+
+    .truncation-banner strong { color: var(--text-primary); font-weight: 600; }
+
+    /* Possible manipulation of the reviewer — a security signal, not an FYI */
+    .injection-banner {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      padding: 10px 18px;
+      font-size: 11.5px;
+      line-height: 1.55;
+      color: var(--text-secondary);
+      background: rgba(208, 59, 59, 0.10);
+      border-bottom: 1px solid var(--border);
+      border-left: 2px solid var(--critical);
+    }
+
+    .injection-banner .banner-icon { color: var(--critical); flex-shrink: 0; }
+    .injection-banner strong { color: var(--text-primary); font-weight: 600; }
+
+    .injection-list {
+      margin-top: 5px;
+      font-family: var(--mono);
+      font-size: 10.5px;
+      color: var(--text-muted);
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    /* ── Findings ── */
+    .findings { padding: 4px 0 24px; }
+
+    .finding {
+      display: flex;
+      gap: 0;
+      border-bottom: 1px solid var(--border);
+      transition: background 0.12s;
+      opacity: 0;
+      transform: translateY(6px);
+      animation: fadeSlideIn 0.2s ease forwards;
+    }
+
+    .finding:hover { background: var(--bg-surface); }
+
+    .finding-stripe { width: 3px; flex-shrink: 0; }
+    .finding.critical .finding-stripe { background: var(--critical); }
+    .finding.warning  .finding-stripe { background: var(--warning); }
+    .finding.info     .finding-stripe { background: var(--info); }
+
+    .finding-body { flex: 1; padding: 11px 18px 12px 15px; min-width: 0; }
+
+    .finding-head {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 5px;
+    }
+
+    .sev-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-family: var(--mono);
+      font-size: 9.5px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .finding.critical .sev-label { color: var(--critical); }
+    .finding.warning  .sev-label { color: var(--warning); }
+    .finding.info     .sev-label { color: var(--info); }
+
+    .cat-tag {
+      font-family: var(--mono);
+      font-size: 9.5px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      padding: 1px 6px;
+      border-radius: 3px;
+      background: var(--bg-elevated);
+      color: var(--text-secondary);
+    }
+
+    .line-ref {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--text-muted);
+      cursor: pointer;
+      margin-left: auto;
+    }
+
+    .line-ref:hover { color: var(--accent); text-decoration: underline; }
+
+    .dismiss {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-size: 13px;
+      line-height: 1;
+      padding: 2px 4px;
+      border-radius: 3px;
+    }
+
+    .dismiss:hover { color: var(--text-primary); background: var(--bg-elevated); }
+
+    .finding-message {
+      font-size: 12.5px;
+      color: var(--text-primary);
+      cursor: pointer;
+      margin-bottom: 6px;
+    }
+
+    .finding-suggestion {
+      background: var(--bg-code);
+      border: 1px solid var(--border);
+      border-left: 2px solid var(--accent-border);
+      border-radius: 4px;
+      padding: 7px 10px;
+      font-family: var(--mono);
+      font-size: 11px;
+      line-height: 1.6;
+      color: var(--text-secondary);
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    /* ── States ── */
+    .state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 56px 24px;
+      text-align: center;
+      gap: 8px;
+    }
+
+    .state-icon { font-size: 30px; opacity: 0.35; margin-bottom: 4px; }
+    .state-title { font-size: 13.5px; color: var(--text-secondary); font-weight: 500; }
+    .state-hint {
+      font-size: 11.5px;
+      color: var(--text-muted);
+      max-width: 340px;
+      line-height: 1.6;
+    }
+    .state-hint code {
+      font-family: var(--mono);
+      background: var(--bg-surface);
+      padding: 1px 5px;
+      border-radius: 3px;
+      font-size: 10.5px;
+      color: var(--text-secondary);
+    }
+
+    .skeleton { padding: 12px 18px; border-bottom: 1px solid var(--border); }
+
+    .skeleton-line {
+      height: 12px;
+      background: linear-gradient(90deg, var(--bg-surface) 25%, var(--bg-elevated) 50%, var(--bg-surface) 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.5s infinite;
+      border-radius: 3px;
+      margin-bottom: 7px;
+    }
+
+    .skeleton-line:nth-child(1) { width: 30%; }
+    .skeleton-line:nth-child(2) { width: 75%; }
+    .skeleton-line:nth-child(3) { width: 100%; height: 34px; border-radius: 4px; }
+
+    @keyframes shimmer {
+      0% { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
+
+    @keyframes fadeSlideIn {
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      * { animation: none !important; transition: none !important; }
+      .finding { opacity: 1; transform: none; }
+    }
+
+    ::-webkit-scrollbar { width: 7px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="header-top">
+      <span class="header-title" id="title">AI Code Review</span>
+      <span class="model-badge" id="modelBadge" style="display:none"></span>
+      <span class="cache-badge" id="cacheBadge" style="display:none">cached</span>
+      <button class="btn" id="reviewAgain" disabled>Review again</button>
+    </div>
+    <div class="tiles" id="tiles">
+      <div class="tile critical zero">
+        <span class="tile-icon">&#x2715;</span>
+        <span class="tile-body"><span class="tile-count" id="countCritical">—</span><span class="tile-label">Critical</span></span>
+      </div>
+      <div class="tile warning zero">
+        <span class="tile-icon">&#x26A0;</span>
+        <span class="tile-body"><span class="tile-count" id="countWarning">—</span><span class="tile-label">Warning</span></span>
+      </div>
+      <div class="tile info zero">
+        <span class="tile-icon">&#x2139;</span>
+        <span class="tile-body"><span class="tile-count" id="countInfo">—</span><span class="tile-label">Info</span></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="injection-banner" id="injectionBanner" style="display:none">
+    <span class="banner-icon">&#x26A0;</span>
+    <span id="injectionText"></span>
+  </div>
+
+  <div class="truncation-banner" id="warningBanner" style="display:none">
+    <span class="banner-icon">&#x26A0;</span>
+    <span id="warningText"></span>
+  </div>
+
+  <div class="truncation-banner" id="truncationBanner" style="display:none">
+    <span class="banner-icon">&#x26A0;</span>
+    <span id="truncationText"></span>
+  </div>
+
+  <div class="summary-line" id="summaryLine" style="display:none"></div>
+
+  <div id="content">
+    <div class="state">
+      <div class="state-icon">&#x1F50E;</div>
+      <div class="state-title">No review yet</div>
+      <div class="state-hint">
+        Open a file and run <code>CodeLens AI: Review File</code>,
+        or select code and run <code>CodeLens AI: Review Selection</code>.
+      </div>
+    </div>
+  </div>
+
+  <script nonce="__NONCE__">
+    const vscode = acquireVsCodeApi();
+    const content = document.getElementById('content');
+    const title = document.getElementById('title');
+    const modelBadge = document.getElementById('modelBadge');
+    const summaryLine = document.getElementById('summaryLine');
+    const reviewAgainBtn = document.getElementById('reviewAgain');
+    const truncationBanner = document.getElementById('truncationBanner');
+    const truncationText = document.getElementById('truncationText');
+    const warningBanner = document.getElementById('warningBanner');
+    const warningText = document.getElementById('warningText');
+    const cacheBadge = document.getElementById('cacheBadge');
+    const injectionBanner = document.getElementById('injectionBanner');
+    const injectionText = document.getElementById('injectionText');
+
+    const SEV_ICON = { critical: '✕', warning: '⚠', info: 'ℹ' };
+
+    let elapsedTimer = null;
+
+    function startElapsed() {
+      const startedAt = Date.now();
+      stopElapsed();
+      const tick = () => {
+        const secs = Math.round((Date.now() - startedAt) / 1000);
+        summaryLine.textContent = `Reviewing — ${secs}s elapsed. Local models typically take 1–2 minutes.`;
+      };
+      tick();
+      elapsedTimer = setInterval(tick, 1000);
+    }
+
+    function stopElapsed() {
+      if (elapsedTimer) {
+        clearInterval(elapsedTimer);
+        elapsedTimer = null;
+      }
+    }
+
+    reviewAgainBtn.addEventListener('click', () => {
+      vscode.postMessage({ type: 'reviewAgain' });
+    });
+
+    function escapeHtml(str) {
+      // Quotes matter: these values land inside HTML attributes, and file paths
+      // come from whatever repository the user opened.
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    function setTiles(findings) {
+      const counts = { critical: 0, warning: 0, info: 0 };
+      (findings || []).forEach(f => { if (counts[f.severity] !== undefined) counts[f.severity]++; });
+      [['critical', 'countCritical'], ['warning', 'countWarning'], ['info', 'countInfo']].forEach(([sev, id]) => {
+        const el = document.getElementById(id);
+        el.textContent = counts[sev];
+        el.closest('.tile').classList.toggle('zero', counts[sev] === 0);
+      });
+    }
+
+    function resetTiles() {
+      ['countCritical', 'countWarning', 'countInfo'].forEach(id => {
+        const el = document.getElementById(id);
+        el.textContent = '—';
+        el.closest('.tile').classList.add('zero');
+      });
+    }
+
+    function renderFindings(findings) {
+      setTiles(findings);
+
+      if (!findings.length) {
+        content.innerHTML = `
+          <div class="state">
+            <div class="state-icon">&#x2713;</div>
+            <div class="state-title">No issues found</div>
+            <div class="state-hint">The reviewer found nothing actionable in this code.</div>
+          </div>`;
+        return;
+      }
+
+      content.innerHTML = '<div class="findings">' + findings.map((f, i) => `
+        <div class="finding ${f.severity}" style="animation-delay: ${i * 0.03}s" data-line="${f.line}" data-index="${i}">
+          <div class="finding-stripe"></div>
+          <div class="finding-body">
+            <div class="finding-head">
+              <span class="sev-label">${SEV_ICON[f.severity] || ''} ${escapeHtml(f.severity)}</span>
+              <span class="cat-tag">${escapeHtml(f.category)}</span>
+              <span class="line-ref">line ${f.line}</span>
+              <button class="dismiss" title="Dismiss">&times;</button>
+            </div>
+            <div class="finding-message">${escapeHtml(f.message)}</div>
+            ${f.suggestion ? `<div class="finding-suggestion">${escapeHtml(f.suggestion)}</div>` : ''}
+          </div>
+        </div>
+      `).join('') + '</div>';
+
+      content.querySelectorAll('.finding').forEach(el => {
+        const line = parseInt(el.dataset.line, 10);
+        const index = parseInt(el.dataset.index, 10);
+        el.querySelector('.finding-message').addEventListener('click', () =>
+          vscode.postMessage({ type: 'openLine', line }));
+        el.querySelector('.line-ref').addEventListener('click', () =>
+          vscode.postMessage({ type: 'openLine', line }));
+        el.querySelector('.dismiss').addEventListener('click', (e) => {
+          e.stopPropagation();
+          vscode.postMessage({ type: 'dismiss', index });
+        });
+      });
+    }
+
+    window.addEventListener('message', (event) => {
+      const msg = event.data;
+
+      if (msg.type === 'loading') {
+        title.textContent = msg.label;
+        reviewAgainBtn.disabled = true;
+        resetTiles();
+        truncationBanner.style.display = 'none';
+        warningBanner.style.display = 'none';
+        injectionBanner.style.display = 'none';
+        cacheBadge.style.display = 'none';
+        summaryLine.style.display = 'block';
+        startElapsed();
+        content.innerHTML = Array(3).fill(`
+          <div class="skeleton">
+            <div class="skeleton-line"></div>
+            <div class="skeleton-line"></div>
+            <div class="skeleton-line"></div>
+          </div>`).join('');
+
+      } else if (msg.type === 'results') {
+        stopElapsed();
+        title.textContent = msg.label;
+        reviewAgainBtn.disabled = false;
+        modelBadge.style.display = 'inline';
+        modelBadge.textContent = msg.provider
+          ? `${msg.provider} · ${msg.model}`
+          : msg.model;
+        modelBadge.classList.toggle('cloud', msg.provider === 'openai' || msg.provider === 'anthropic');
+
+        cacheBadge.style.display = msg.cached ? 'inline' : 'none';
+
+        const injections = msg.injectionWarnings || [];
+        if (injections.length) {
+          injectionBanner.style.display = 'flex';
+          injectionText.innerHTML =
+            `<strong>This code may be trying to manipulate the reviewer.</strong> ` +
+            `It contains text written like instructions to an AI. Findings below ` +
+            `may be suppressed or misleading — read the flagged lines yourself.` +
+            `<div class="injection-list">${injections.map(escapeHtml).join('<br>')}</div>`;
+        } else {
+          injectionBanner.style.display = 'none';
+        }
+
+        const notes = (msg.warnings || []).slice();
+        if (msg.fallbackUsed) {
+          notes.unshift(`Primary provider failed — answered by ${msg.provider}.`);
+        }
+        if (notes.length) {
+          warningBanner.style.display = 'flex';
+          warningText.innerHTML = notes.map(escapeHtml).join('<br>');
+        } else {
+          warningBanner.style.display = 'none';
+        }
+
+        if (msg.truncated) {
+          truncationBanner.style.display = 'flex';
+          truncationText.innerHTML =
+            `<strong>Partial review.</strong> This code was too long for the model's context window, ` +
+            `so only the first ${msg.linesReviewed} lines were reviewed. ` +
+            `Select a smaller range to review the rest.`;
+        } else {
+          truncationBanner.style.display = 'none';
+        }
+
+        summaryLine.style.display = 'block';
+        const files = msg.contextFiles || [];
+        let contextNote = '';
+        if (files.length) {
+          // Name the files, don't just count them — on a cloud provider these left the machine.
+          contextNote = ` <span class="context-note" title="${escapeHtml(files.join('\n'))}">` +
+            `· context from ${escapeHtml(files.slice(0, 3).join(', '))}` +
+            `${files.length > 3 ? ` +${files.length - 3} more` : ''}</span>`;
+        } else if (msg.provider === 'openai' || msg.provider === 'anthropic') {
+          contextNote = ' <span class="context-note">· reviewed file only, no other files sent</span>';
+        }
+        summaryLine.innerHTML = escapeHtml(msg.summary) + contextNote;
+        renderFindings(msg.findings || []);
+
+      } else if (msg.type === 'findings') {
+        renderFindings(msg.findings || []);
+
+      } else if (msg.type === 'error') {
+        stopElapsed();
+        reviewAgainBtn.disabled = false;
+        resetTiles();
+        truncationBanner.style.display = 'none';
+        warningBanner.style.display = 'none';
+        injectionBanner.style.display = 'none';
+        cacheBadge.style.display = 'none';
+        summaryLine.style.display = 'none';
+        content.innerHTML = `
+          <div class="state">
+            <div class="state-icon">&#x26A0;</div>
+            <div class="state-title">Review failed</div>
+            <div class="state-hint">${escapeHtml(msg.message)}</div>
+          </div>`;
+      }
+    });
+  </script>
+</body>
+</html>

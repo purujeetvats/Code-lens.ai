@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-__NONCE__';">
+  <style>
+    :root {
+      /* Neutral greyscale only — no hue anywhere in this panel */
+      --bg: #0d0d0d;
+      --bg-surface: #161616;
+      --bg-elevated: #232323;
+      --bg-code: #080808;
+      --text-primary: #f0f0f0;
+      --text-secondary: #a3a3a3;
+      --text-muted: #6b6b6b;
+      --border: rgba(255, 255, 255, 0.09);
+      --border-strong: rgba(255, 255, 255, 0.22);
+      /* Relevance is a magnitude: one ramp, light = stronger match */
+      --score-high: #f0f0f0;
+      --score-mid: #9a9a9a;
+      --score-low: #6b6b6b;
+      --radius: 4px;
+      --mono: 'SF Mono', 'Cascadia Code', 'JetBrains Mono', 'Fira Code', Consolas, monospace;
+      --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: var(--sans);
+      font-size: 12.5px;
+      background: var(--bg);
+      color: var(--text-primary);
+      line-height: 1.5;
+      overflow-x: hidden;
+      /* Clear the fixed byline so the last result is never hidden behind it */
+      padding-bottom: 26px;
+    }
+
+    .byline {
+      position: fixed;
+      right: 0;
+      bottom: 0;
+      left: 0;
+      padding: 5px 12px;
+      text-align: right;
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: 0.2px;
+      color: var(--text-muted);
+      background: var(--bg);
+      border-top: 1px solid var(--border);
+      pointer-events: none;
+      user-select: none;
+    }
+
+    /* ── Search Header ── */
+    .search-header {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      padding: 12px 14px 8px;
+      background: var(--bg);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .search-box {
+      position: relative;
+    }
+
+    .search-icon {
+      position: absolute;
+      left: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-muted);
+      font-size: 13px;
+      pointer-events: none;
+    }
+
+    .search-input {
+      width: 100%;
+      padding: 9px 12px 9px 32px;
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text-primary);
+      font-family: var(--mono);
+      font-size: 12.5px;
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    .search-input::placeholder {
+      color: var(--text-muted);
+      font-family: var(--sans);
+    }
+
+    .search-input:focus {
+      border-color: var(--border-strong);
+      background: var(--bg-elevated);
+    }
+
+    /* Keyboard users still need a visible focus ring */
+    .filter-chip:focus-visible,
+    .result-item:focus-visible {
+      outline: 1px solid var(--text-primary);
+      outline-offset: -1px;
+    }
+
+    .search-meta {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 6px 0 0;
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .search-meta .shortcut {
+      font-family: var(--mono);
+      font-size: 10px;
+      padding: 1px 5px;
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      color: var(--text-secondary);
+    }
+
+    .filter-row {
+      display: flex;
+      gap: 6px;
+      padding-top: 8px;
+    }
+
+    .filter-chip {
+      padding: 3px 8px;
+      font-size: 11px;
+      font-family: var(--mono);
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: 100px;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: all 0.15s;
+      user-select: none;
+    }
+
+    .filter-chip:hover {
+      border-color: var(--border-strong);
+      color: var(--text-primary);
+    }
+
+    /* Active state reads through fill and weight, not colour */
+    .filter-chip.active {
+      background: var(--text-primary);
+      border-color: var(--text-primary);
+      color: var(--bg);
+      font-weight: 600;
+    }
+
+    /* ── Results ── */
+    .results {
+      padding: 6px 0;
+    }
+
+    .result-item {
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border);
+      cursor: pointer;
+      transition: background 0.12s;
+    }
+
+    .result-item:hover {
+      background: var(--bg-surface);
+    }
+
+    .result-item:active {
+      background: var(--bg-elevated);
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      * { animation: none !important; transition: none !important; }
+      .result-item { opacity: 1; transform: none; }
+    }
+
+    .result-head {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 4px;
+    }
+
+    .result-tag {
+      font-size: 9.5px;
+      font-family: var(--mono);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      padding: 1px 6px;
+      border-radius: 3px;
+      font-weight: 600;
+    }
+
+    .result-tag.fn,
+    .result-tag.class,
+    .result-tag.module {
+      background: var(--bg-elevated);
+      color: var(--text-secondary);
+      border: 1px solid var(--border);
+    }
+
+    .result-tag.class { color: var(--text-primary); }
+    .result-tag.module {
+      color: var(--text-muted);
+      border-style: dashed;
+    }
+
+    .result-symbol {
+      font-family: var(--mono);
+      font-size: 12.5px;
+      font-weight: 500;
+      color: var(--text-primary);
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .result-score {
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 600;
+      min-width: 36px;
+      text-align: right;
+    }
+
+    .score-high { color: var(--score-high); }
+    .score-mid { color: var(--score-mid); }
+    .score-low { color: var(--score-low); }
+
+    .result-path {
+      font-size: 11px;
+      color: var(--text-muted);
+      font-family: var(--mono);
+      margin-bottom: 6px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .result-path .line-ref {
+      color: var(--text-secondary);
+    }
+
+    .result-preview {
+      background: var(--bg-code);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 8px 10px;
+      font-family: var(--mono);
+      font-size: 11px;
+      line-height: 1.6;
+      color: var(--text-secondary);
+      overflow-x: auto;
+      max-height: 96px;
+      white-space: pre;
+      tab-size: 4;
+    }
+
+    .result-preview::-webkit-scrollbar {
+      height: 4px;
+    }
+
+    .result-preview::-webkit-scrollbar-thumb {
+      background: var(--border);
+      border-radius: 2px;
+    }
+
+    /* ── States ── */
+    .state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 48px 24px;
+      text-align: center;
+      gap: 8px;
+    }
+
+    .state-icon {
+      font-size: 28px;
+      opacity: 0.3;
+      margin-bottom: 4px;
+    }
+
+    .state-title {
+      font-size: 13px;
+      color: var(--text-secondary);
+      font-weight: 500;
+    }
+
+    .state-hint {
+      font-size: 11px;
+      color: var(--text-muted);
+      max-width: 220px;
+      line-height: 1.5;
+    }
+
+    .state-hint code {
+      font-family: var(--mono);
+      background: var(--bg-surface);
+      padding: 1px 4px;
+      border-radius: 3px;
+      font-size: 10.5px;
+    }
+
+    /* ── Loading ── */
+    .skeleton {
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .skeleton-line {
+      height: 12px;
+      background: linear-gradient(90deg, #161616 25%, #262626 50%, #161616 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.5s infinite;
+      border-radius: 3px;
+      margin-bottom: 6px;
+    }
+
+    .skeleton-line:nth-child(1) { width: 35%; }
+    .skeleton-line:nth-child(2) { width: 60%; height: 10px; }
+    .skeleton-line:nth-child(3) { width: 100%; height: 48px; border-radius: 4px; }
+
+    @keyframes shimmer {
+      0% { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
+
+    /* ── Scrollbar ── */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb {
+      background: var(--border);
+      border-radius: 3px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: var(--text-muted);
+    }
+
+    /* ── Result enter animation ── */
+    .result-item {
+      opacity: 0;
+      transform: translateY(6px);
+      animation: fadeSlideIn 0.2s ease forwards;
+    }
+
+    @keyframes fadeSlideIn {
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* stagger via inline delay */
+  </style>
+</head>
+<body>
+  <div class="search-header">
+    <div class="search-box">
+      <span class="search-icon">&#x1F50D;</span>
+      <input
+        class="search-input"
+        id="searchInput"
+        type="text"
+        placeholder="Search code semantically..."
+        spellcheck="false"
+        autocomplete="off"
+      />
+    </div>
+    <div class="search-meta">
+      <span id="resultCount"></span>
+      <span class="shortcut">Enter ↵</span>
+    </div>
+    <div class="filter-row" id="filters">
+      <span class="filter-chip" data-lang="">all</span>
+      <span class="filter-chip" data-lang="py">py</span>
+      <span class="filter-chip" data-lang="js">js</span>
+      <span class="filter-chip" data-lang="ts">ts</span>
+      <span class="filter-chip" data-lang="tsx">tsx</span>
+    </div>
+  </div>
+
+  <div id="content">
+    <div class="state" id="emptyState">
+      <div class="state-icon">⌘</div>
+      <div class="state-title">Semantic Code Search</div>
+      <div class="state-hint">
+        Describe what you're looking for in plain English.
+        <br><br>
+        <code>"function that validates email"</code>
+        <br>
+        <code>"error handling for API calls"</code>
+        <br>
+        <code>"database connection setup"</code>
+      </div>
+    </div>
+  </div>
+
+  <div class="byline">by Purujeet Vats</div>
+
+  <script nonce="__NONCE__">
+    const vscode = acquireVsCodeApi();
+    const input = document.getElementById('searchInput');
+    const content = document.getElementById('content');
+    const resultCount = document.getElementById('resultCount');
+    const filters = document.getElementById('filters');
+    let activeFilter = '';
+    let debounceTimer = null;
+
+    // Filter chips
+    filters.addEventListener('click', (e) => {
+      const chip = e.target.closest('.filter-chip');
+      if (!chip) return;
+      filters.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+      chip.classList.add('active');
+      activeFilter = chip.dataset.lang;
+      if (input.value.trim().length >= 2) triggerSearch();
+    });
+
+    // Search on Enter or debounced input
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        clearTimeout(debounceTimer);
+        triggerSearch();
+      }
+    });
+
+    input.addEventListener('input', () => {
+      clearTimeout(debounceTimer);
+      if (input.value.trim().length >= 3) {
+        debounceTimer = setTimeout(triggerSearch, 400);
+      } else if (input.value.trim().length === 0) {
+        showEmpty();
+      }
+    });
+
+    function triggerSearch() {
+      const query = input.value.trim();
+      if (!query) return;
+      showLoading();
+      vscode.postMessage({
+        type: 'search',
+        query,
+        language: activeFilter || null,
+      });
+    }
+
+    function showEmpty() {
+      content.innerHTML = `
+        <div class="state" id="emptyState">
+          <div class="state-icon">⌘</div>
+          <div class="state-title">Semantic Code Search</div>
+          <div class="state-hint">
+            Describe what you're looking for in plain English.
+            <br><br>
+            <code>"function that validates email"</code>
+            <br>
+            <code>"error handling for API calls"</code>
+            <br>
+            <code>"database connection setup"</code>
+          </div>
+        </div>`;
+      resultCount.textContent = '';
+    }
+
+    function showLoading() {
+      content.innerHTML = Array(4).fill(`
+        <div class="skeleton">
+          <div class="skeleton-line"></div>
+          <div class="skeleton-line"></div>
+          <div class="skeleton-line"></div>
+        </div>
+      `).join('');
+      resultCount.textContent = 'searching...';
+    }
+
+    function showNoResults() {
+      content.innerHTML = `
+        <div class="state">
+          <div class="state-icon">∅</div>
+          <div class="state-title">No results</div>
+          <div class="state-hint">
+            Try different terms or check if workspace is indexed.
+            <br><br>
+            Run <code>CodeLens AI: Index Workspace</code> first.
+          </div>
+        </div>`;
+      resultCount.textContent = '0 results';
+    }
+
+    function scoreClass(score) {
+      if (score >= 0.7) return 'score-high';
+      if (score >= 0.4) return 'score-mid';
+      return 'score-low';
+    }
+
+    function tagClass(type) {
+      if (type === 'class') return 'class';
+      if (type === 'module') return 'module';
+      return 'fn';
+    }
+
+    function tagLabel(type) {
+      if (type === 'class') return 'cls';
+      if (type === 'module') return 'mod';
+      return 'fn';
+    }
+
+    function escapeHtml(str) {
+      // Quotes matter: these values land inside HTML attributes, and file paths
+      // come from whatever repository the user opened.
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    function truncateSnippet(text, maxLines) {
+      const lines = text.split('\n');
+      if (lines.length <= maxLines) return escapeHtml(text);
+      return escapeHtml(lines.slice(0, maxLines).join('\n')) + '\n…';
+    }
+
+    function shortenPath(fullPath) {
+      // Show last 3 segments max
+      const parts = fullPath.replace(/\\/g, '/').split('/');
+      if (parts.length <= 3) return parts.join('/');
+      return '…/' + parts.slice(-3).join('/');
+    }
+
+    function renderResults(results) {
+      if (!results.length) { showNoResults(); return; }
+
+      resultCount.textContent = `${results.length} result${results.length === 1 ? '' : 's'}`;
+
+      content.innerHTML = results.map((r, i) => `
+        <div class="result-item" style="animation-delay: ${i * 0.04}s"
+             data-file="${escapeHtml(r.file)}" data-line="${r.line_start}">
+          <div class="result-head">
+            <span class="result-tag ${tagClass(r.symbol_type || 'function')}">${tagLabel(r.symbol_type || 'function')}</span>
+            <span class="result-symbol">${escapeHtml(r.symbol)}</span>
+            <span class="result-score ${scoreClass(r.score)}">${r.score}</span>
+          </div>
+          <div class="result-path">
+            ${shortenPath(r.file)} <span class="line-ref">:${r.line_start}</span>
+          </div>
+          <div class="result-preview">${truncateSnippet(r.snippet, 6)}</div>
+        </div>
+      `).join('');
+
+      // Click to open file
+      content.querySelectorAll('.result-item').forEach(item => {
+        item.addEventListener('click', () => {
+          vscode.postMessage({
+            type: 'openFile',
+            file: item.dataset.file,
+            line: parseInt(item.dataset.line, 10),
+          });
+        });
+      });
+    }
+
+    // Receive messages from extension
+    window.addEventListener('message', (event) => {
+      const msg = event.data;
+      if (msg.type === 'searchResults') {
+        renderResults(msg.results);
+      } else if (msg.type === 'error') {
+        content.innerHTML = `
+          <div class="state">
+            <div class="state-icon">⚠</div>
+            <div class="state-title">Search failed</div>
+            <div class="state-hint">${escapeHtml(msg.message)}</div>
+          </div>`;
+        resultCount.textContent = 'error';
+      }
+    });
+
+    // Auto-focus search input
+    input.focus();
+  </script>
+</body>
+</html>

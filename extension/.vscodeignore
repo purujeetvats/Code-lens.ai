@@ -1,0 +1,16 @@
+# Source and build config — only compiled output ships
+src/**
+tsconfig.json
+.vscode/**
+**/*.map
+**/*.ts
+!out/**/*.js
+
+# Backend caches and virtualenvs must never be packaged
+backend/**/__pycache__/**
+backend/**/*.pyc
+backend/.venv/**
+backend/**/.codelens/**
+
+node_modules/**
+.gitignore
