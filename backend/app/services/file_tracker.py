@@ -2,6 +2,7 @@
 
 import hashlib
 import sqlite3
+import subprocess
 from pathlib import Path
 
 from app.services.chunker import SUPPORTED_EXTENSIONS
@@ -32,6 +33,45 @@ def file_hash(path: str) -> str:
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
 
+def iter_candidate_files(workspace: str):
+    """Yield indexable files in the workspace.
+
+    In a git repo, ask git for the file list: it applies .gitignore for free, so
+    build output, vendored copies and dependency folders stay out of the index.
+    Indexing a gitignored duplicate of the source is worse than useless — it
+    fills search results with the same symbol twice.
+    """
+    root = Path(workspace)
+    listed_by_git = False
+
+    if (root / ".git").exists():
+        try:
+            out = subprocess.run(
+                ["git", "ls-files", "--cached", "--others", "--exclude-standard"],
+                cwd=workspace,
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            if out.returncode == 0:
+                listed_by_git = True
+                for line in out.stdout.splitlines():
+                    p = root / line.strip()
+                    if p.is_file() and p.suffix.lower() in SUPPORTED_EXTENSIONS:
+                        yield p
+        except (OSError, subprocess.SubprocessError):
+            listed_by_git = False
+
+    if listed_by_git:
+        return
+
+    for path in root.rglob("*"):
+        if any(skip in path.parts for skip in SKIP_DIRS):
+            continue
+        if path.is_file() and path.suffix.lower() in SUPPORTED_EXTENSIONS:
+            yield path
+
+
 def get_changed_files(workspace: str, db: sqlite3.Connection) -> tuple[list[str], list[str]]:
     """Return (new_or_modified, deleted) file lists."""
     # Get all tracked hashes
@@ -40,12 +80,7 @@ def get_changed_files(workspace: str, db: sqlite3.Connection) -> tuple[list[str]
     current_files: set[str] = set()
     changed: list[str] = []
 
-    for path in Path(workspace).rglob("*"):
-        if any(skip in path.parts for skip in SKIP_DIRS):
-            continue
-        if not path.is_file() or path.suffix.lower() not in SUPPORTED_EXTENSIONS:
-            continue
-
+    for path in iter_candidate_files(workspace):
         fpath = str(path)
         current_files.add(fpath)
         h = file_hash(fpath)

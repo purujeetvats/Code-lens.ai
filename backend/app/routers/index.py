@@ -14,7 +14,7 @@ def chunker_extensions() -> set[str]:
     from app.services.chunker import SUPPORTED_EXTENSIONS
 
     return SUPPORTED_EXTENSIONS
-from app.services.chunker import chunk_file
+from app.services.chunker import chunk_file, embedding_text
 from app.services.embedder import embed_texts, get_embedding_dim
 from app.services.file_tracker import get_changed_files, get_db, remove_hash, update_hash
 from app.services.vector_store import (
@@ -57,13 +57,8 @@ def _index_worker(
             deleted = []
         elif force:
             # Force re-index: treat all files as changed
-            from app.services.file_tracker import SUPPORTED_EXTENSIONS, SKIP_DIRS
-            changed = [
-                str(p) for p in Path(workspace).rglob("*")
-                if p.is_file()
-                and p.suffix.lower() in SUPPORTED_EXTENSIONS
-                and not any(skip in p.parts for skip in SKIP_DIRS)
-            ]
+            from app.services.file_tracker import iter_candidate_files
+            changed = [str(p) for p in iter_candidate_files(workspace)]
             deleted: list[str] = []
         else:
             changed, deleted = get_changed_files(workspace, db)
@@ -86,7 +81,8 @@ def _index_worker(
                 all_chunks.extend(chunks)
 
             if all_chunks:
-                texts = [c.text for c in all_chunks]
+                # Embed a symbol/file header alongside the code — see embedding_text()
+                texts = [embedding_text(c, workspace) for c in all_chunks]
                 vectors = embed_texts(texts)
                 payloads = [
                     {

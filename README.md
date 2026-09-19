@@ -207,7 +207,7 @@ docs/               design spec
 All six build phases are done: skeleton, indexing, semantic search, the AI
 reviewer, multi-provider LLM routing with fallback and caching, and polish —
 index-on-save, 13 languages, progress reporting, and packaging. See
-[the design spec](docs/superpowers/specs/2026-09-17-codelens-ai-design.md).
+[the design spec](docs/design-spec.md).
 
 Not yet done: a marketplace icon (`media/icon.png`), pinned Python dependency
 versions, and a published release.

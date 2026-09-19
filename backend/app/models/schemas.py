@@ -25,6 +25,8 @@ class SearchRequest(BaseModel):
     workspace_path: str
     limit: int = 10
     language: str | None = None
+    # Drop hits scoring below this fraction of the best hit. 0 disables.
+    min_score_ratio: float = 0.7
 
 
 class SearchResult(BaseModel):
