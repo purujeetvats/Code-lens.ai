@@ -20,3 +20,6 @@ extension/*.vsix
 
 # Personal documents — never publish
 *.pdf
+
+# Design docs — internal only
+docs/
